@@ -5,3 +5,4 @@ requests==2.31.0
 pydub==0.25.1
 mistralai==1.0.1
 Pillow==10.2.0
+audio-recorder-streamlit==0.0.10

@@ -1,6 +1,7 @@
 import os
 import tempfile
 import json
+from io import BytesIO
 from pydub import AudioSegment
 from groq import Groq
 from dotenv import load_dotenv
@@ -17,10 +18,17 @@ client = Groq(api_key=GROQ_API_KEY)
 def preprocess_audio(audio_file):
     """
     Convert uploaded audio to proper format for processing
+    Handles both uploaded files and recorded audio bytes
     """
+    
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_audio:
-        # Save the uploaded file to a temporary file
-        temp_audio.write(audio_file.getvalue())
+        # Check if it's bytes data (from recorder) or file object (from uploader)
+        if isinstance(audio_file, BytesIO):
+            # From audio recorder - already in bytes format
+            temp_audio.write(audio_file.getvalue())
+        else:
+            # From file uploader - get the bytes
+            temp_audio.write(audio_file.getvalue())
         temp_audio_path = temp_audio.name
     
     # Convert to wav format if needed

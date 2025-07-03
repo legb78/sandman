@@ -4,6 +4,13 @@ import sys
 from io import BytesIO
 from dotenv import load_dotenv
 
+# Importer l'enregistreur audio
+try:
+    from audio_recorder_streamlit import audio_recorder
+    audio_recorder_available = True
+except ImportError:
+    audio_recorder_available = False
+
 # Ajouter le chemin actuel au path Python pour assurer l'importation du module
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -38,18 +45,54 @@ if not import_success:
 
 # Section d'upload de fichier audio
 st.markdown("### 1. Racontez votre rêve")
-audio_input = st.file_uploader("Choisir un fichier MP3 ou WAV", type=["mp3", "wav", "m4a", "ogg"])
 
-if audio_input is not None:
+# Onglets pour choisir le mode d'entrée audio
+tab1, tab2 = st.tabs(["📁 Uploader un fichier", "🎤 Enregistrer directement"])
+
+audio_data = None
+
+with tab1:
+    # Upload de fichier existant
+    audio_input = st.file_uploader("Choisir un fichier MP3 ou WAV", type=["mp3", "wav", "m4a", "ogg"])
+    if audio_input is not None:
+        st.audio(audio_input)
+        audio_data = audio_input
+
+with tab2:
+    # Enregistrement audio direct
+    st.markdown("**🎤 Enregistrement audio direct**")
+    st.info("💡 Cliquez sur 'Enregistrer' puis parlez. Cliquez sur 'Arrêter' quand vous avez terminé.")
+    
+    if audio_recorder_available:
+        # Enregistreur audio fonctionnel
+        audio_bytes = audio_recorder(
+            text="Cliquez pour enregistrer votre rêve",
+            recording_color="#e8b62c",
+            neutral_color="#6aa36f",
+            icon_name="microphone",
+            icon_size="2x"
+        )
+        
+        if audio_bytes:
+            st.audio(audio_bytes, format="audio/wav")
+            # Convertir en objet similaire au file_uploader
+            audio_data = BytesIO(audio_bytes)
+            audio_data.name = "recorded_audio.wav"
+    else:
+        # Fallback si la librairie n'est pas installée
+        st.warning("⚠️ L'enregistrement direct nécessite l'installation de `streamlit-audio-recorder`. Utilisez l'onglet 'Uploader un fichier' pour le moment.")
+        st.code("pip install streamlit-audio-recorder==0.0.10")
+
+if audio_data is not None:
     # Afficher un lecteur audio pour le fichier téléchargé
-    st.audio(audio_input)
+    st.audio(audio_data)
     
     # Bouton pour traiter l'audio
     if st.button("Transcrire l'audio"):
         with st.spinner("Traitement de l'audio en cours..."):
             try:
                 # Prétraiter l'audio
-                audio_path = preprocess_audio(audio_input)
+                audio_path = preprocess_audio(audio_data)
                 
                 # Transcrire l'audio
                 transcript = transcribe_audio(audio_path)
