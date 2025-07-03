@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import sys
+from io import BytesIO
 from dotenv import load_dotenv
 
 # Ajouter le chemin actuel au path Python pour assurer l'importation du module
@@ -10,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 try:
     from audio_processor import preprocess_audio, transcribe_audio
     from text_processor import extract_visual_elements, analyze_dream_sentiment, create_image_prompt
+    from image_generator import generate_image_with_clipboard, get_available_styles, preview_styled_prompt
     import_success = True
 except ImportError as e:
     import_success = False
@@ -116,13 +118,30 @@ if 'dream_transcript' in st.session_state:
     if 'visual_analysis' in st.session_state:
         st.markdown("### 4. Génération d'image")
         
-        # Options de style
-        style_options = ["automatique", "dreamlike", "realistic", "abstract", "surreal", "fantasy", "impressionist"]
-        selected_style = st.selectbox(
-            "Choisissez un style d'image:", 
-            style_options,
-            help="'automatique' utilise le style recommandé par l'analyse"
-        )
+        # Obtenir les styles disponibles
+        available_styles = get_available_styles()
+        
+        # Interface pour choisir le style
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Options de style avec descriptions
+            style_options = list(available_styles.keys())
+            style_labels = [f"{style}: {desc}" for style, desc in available_styles.items()]
+            
+            selected_style_idx = st.selectbox(
+                "Choisissez un style d'image:", 
+                range(len(style_options)),
+                format_func=lambda x: style_labels[x],
+                help="'automatic' utilise le style recommandé par l'analyse Mistral"
+            )
+            selected_style = style_options[selected_style_idx]
+        
+        with col2:
+            # Paramètres de l'image
+            st.markdown("**Paramètres de l'image**")
+            image_width = st.selectbox("Largeur:", [512, 768, 1024], index=2)
+            image_height = st.selectbox("Hauteur:", [512, 768, 1024], index=2)
         
         # Créer le prompt final
         image_prompt_data = create_image_prompt(
@@ -130,18 +149,103 @@ if 'dream_transcript' in st.session_state:
             selected_style
         )
         
-        # Afficher le prompt qui sera utilisé
-        st.markdown("#### 🖼️ Prompt pour la génération d'image")
-        st.code(image_prompt_data["prompt_principal"])
+        # Prévisualiser le prompt modifié selon le style
+        if selected_style != "automatic":
+            prompt_preview = preview_styled_prompt(
+                image_prompt_data["prompt_principal"], 
+                selected_style
+            )
+            
+            st.markdown("#### 🔍 Aperçu du prompt modifié")
+            with st.expander("Voir les modifications appliquées"):
+                st.markdown("**Prompt original (Mistral):**")
+                st.text(prompt_preview["original_prompt"])
+                st.markdown("**Prompt avec style appliqué:**")
+                st.text(prompt_preview["styled_prompt"])
         
-        # Bouton de génération (placeholder pour l'instant)
-        if st.button("Générer l'image"):
-            st.info("🚧 La génération d'images sera implémentée dans la prochaine phase...")
+        # Afficher le prompt qui sera utilisé
+        st.markdown("#### 🖼️ Prompt final pour la génération")
+        final_prompt = image_prompt_data["prompt_principal"]
+        st.code(final_prompt)
+        
+        # Bouton de génération d'image
+        if st.button("🎨 Générer l'image", type="primary"):
+            with st.spinner("Génération de l'image en cours... Cela peut prendre quelques instants..."):
+                try:
+                    # Générer l'image avec l'API Clipboard
+                    result = generate_image_with_clipboard(
+                        prompt=final_prompt,
+                        style=selected_style
+                    )
+                    
+                    if result["success"]:
+                        # Afficher l'image générée
+                        st.success("🎉 Image générée avec succès !")
+                        
+                        # Afficher l'image
+                        st.image(
+                            result["image"], 
+                            caption=f"Votre rêve visualisé en style {selected_style}",
+                            use_column_width=True
+                        )
+                        
+                        # Informations sur la génération
+                        with st.expander("Détails de la génération"):
+                            st.json({
+                                "style_utilisé": result["style"],
+                                "prompt_utilisé": result["prompt_used"],
+                                "dimensions": f"{image_width}x{image_height}",
+                                "chemin_image": result["image_path"]
+                            })
+                        
+                        # Sauvegarder dans la session
+                        st.session_state.generated_image = result
+                        
+                        # Bouton de téléchargement
+                        if st.button("💾 Télécharger l'image"):
+                            # Convertir l'image en bytes pour le téléchargement
+                            img_bytes = BytesIO()
+                            result["image"].save(img_bytes, format='PNG')
+                            img_bytes.seek(0)
+                            
+                            st.download_button(
+                                label="📁 Télécharger PNG",
+                                data=img_bytes.getvalue(),
+                                file_name=f"dream_image_{selected_style}.png",
+                                mime="image/png"
+                            )
+                    
+                    else:
+                        # Afficher l'erreur
+                        st.error(f"❌ Erreur lors de la génération: {result['error']}")
+                        
+                        # Suggestion de solutions
+                        if "API" in result['error']:
+                            st.info("💡 Vérifiez que votre clé API Clipboard est correctement configurée dans le fichier .env")
+                        
+                except Exception as e:
+                    st.error(f"Erreur inattendue: {str(e)}")
+        
+        # Si une image a été générée, afficher les options supplémentaires
+        if 'generated_image' in st.session_state:
+            st.markdown("### 5. Actions supplémentaires")
             
-            # Afficher les détails du prompt
-            with st.expander("Voir les détails du prompt"):
-                st.json(image_prompt_data)
+            col1, col2, col3 = st.columns(3)
             
-            # Placeholder image
-            st.image("https://via.placeholder.com/512x512?text=Votre+Rêve+Visualisé", 
-                    caption=f"Futur rendu en style {selected_style}")
+            with col1:
+                if st.button("🔄 Regénérer avec le même style"):
+                    st.rerun()
+            
+            with col2:
+                if st.button("🎨 Essayer un autre style"):
+                    # Effacer l'image actuelle pour permettre un nouveau choix
+                    if 'generated_image' in st.session_state:
+                        del st.session_state.generated_image
+                    st.rerun()
+            
+            with col3:
+                if st.button("🆕 Nouveau rêve"):
+                    # Effacer toute la session
+                    for key in list(st.session_state.keys()):
+                        del st.session_state[key]
+                    st.rerun()
