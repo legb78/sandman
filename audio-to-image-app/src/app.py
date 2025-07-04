@@ -292,3 +292,11 @@ if 'dream_transcript' in st.session_state:
                     for key in list(st.session_state.keys()):
                         del st.session_state[key]
                     st.rerun()
+
+def main():
+    """Entry point for the application when run as a package"""
+    # Nothing to do as Streamlit automatically runs the script
+    pass
+
+if __name__ == "__main__":
+    main()

@@ -46,8 +46,38 @@ audio-to-image-app
 
 ## Usage Guidelines
 
-- Upload an audio file using the provided interface.
-- The application will process the audio, convert it to text, and generate corresponding images.
+- Upload an audio file or record audio directly using the provided interface.
+- The application will transcribe the audio to text using Groq's Whisper API.
+- The text is analyzed with Mistral AI to extract key visual elements and emotions.
+- Finally, the app generates an image based on the analysis using Clipboard API (Stable Diffusion).
+- You can select different image styles to customize the output.
+
+## Testing
+
+Run the unit tests with:
+```
+python -m unittest discover -s tests
+```
+
+## Maintenance
+
+A cleanup script is provided to remove temporary files created by the application:
+```
+python scripts/cleanup.py
+```
+
+Options:
+- `--max-age`: Maximum age of files to keep in hours (default: 24)
+- `--dry-run`: Show what would be deleted without actually deleting
+- `--path`: Path to clean (defaults to project directory)
+
+## Data Privacy & GDPR
+
+For information about GDPR compliance and data privacy considerations, please see [GDPR_COMPLIANCE.md](GDPR_COMPLIANCE.md).
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 - Explore the generated images and download them if needed.
 
 ## Contributing
